@@ -215,6 +215,7 @@ int other_safe_func(int t) {
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
+
   osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 4096, defaultTaskBuffer, &defaultTaskControlBlock);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
@@ -228,6 +229,7 @@ int other_safe_func(int t) {
 
   /* Start scheduler */
   osKernelStart();
+
 #ifdef _GLIBCXX_HAS_GTHREADS
 #warning "it has thread"
 #endif
@@ -240,7 +242,9 @@ int other_safe_func(int t) {
 
 //  std::thread first {&startStdTask};
 //  first.join();
-//  std::mutex mux {};
+  {
+      std::mutex mux {};
+  }
 //  mux.lock();
   std::scoped_lock<> cp {};
 
