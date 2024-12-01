@@ -82,7 +82,8 @@ static void MX_TIM1_Init(void);
 static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void const * argument);
 void StartTestTask(void const * argument);
-void startStdTask();
+void startStdTask(std::mutex &mtx);
+void testTimedMutexTask(std::timed_mutex &mtx);
 
 /* USER CODE BEGIN PFP */
 
@@ -151,6 +152,10 @@ int other_safe_func(int t) {
 	common.y += t;
 	common.z += t;
 	return common.x + common.y + common.z;
+}
+
+extern "C" int _getentropy(uint8_t*, int) {
+	return 0;
 }
 
 /* USER CODE END 0 */
@@ -223,6 +228,14 @@ int other_safe_func(int t) {
   osThreadStaticDef(testTask, StartTestTask, osPriorityNormal, 0, 512, testTaskBuffer, &testTaskControlBlock);
   testTaskHandle = osThreadCreate(osThread(testTask), NULL);
 
+  std::mutex mtx {};
+  std::timed_mutex tmtx {};
+  std::recursive_mutex rmtx{};
+
+  std::thread first {startStdTask, std::ref(mtx)};
+
+  std::thread test {testTimedMutexTask, std::ref(tmtx)};
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -240,20 +253,14 @@ int other_safe_func(int t) {
 #warning "GLIBCXX_HAVE_TLS"
 #endif
 
-//  std::thread first {&startStdTask};
-//  first.join();
-  {
-      std::mutex mux {};
-  }
-//  mux.lock();
-  std::scoped_lock<> cp {};
-
   /* We should never get here as control is now taken by the scheduler */
+  std::abort();
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  osDelay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -749,9 +756,11 @@ void StartDefaultTask(void const * argument)
   MX_USB_HOST_Init();
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
+  auto stat = eTaskGetState(testTaskHandle);
   for(;;)
   {
-    osDelay(1);
+	  stat = eTaskGetState(testTaskHandle);
+      osDelay(1000);
   }
   /* USER CODE END 5 */
 }
@@ -770,22 +779,37 @@ void StartTestTask(void const * argument)
   safe_func(10);
   other_safe_func(100);
   int i = 0;
-  for(;;)
+//  for(;;)
   {
 	if ((i++) % 10 == 0) {
 		safe_func(i);
 		other_safe_func(i);
 	}
-    osDelay(1);
+    osDelay(1000);
   }
+  vTaskDelete( NULL );
   /* USER CODE END StartTestTask */
 }
 
-void startStdTask() {
+void startStdTask(std::mutex &mtx) {
 	safe_func(10);
 	other_safe_func(100);
+	int x {};
 	for(;;) {
-	    osDelay(1);
+		mtx.lock();
+		x++;
+		mtx.unlock();
+	    osDelay(100);
+	}
+}
+
+void testTimedMutexTask(std::timed_mutex &mtx) {
+	int x {};
+	for(;;) {
+		if(mtx.try_lock_for(std::chrono::milliseconds {100})) {
+			x++;
+			mtx.unlock();
+		}
 	}
 }
 
