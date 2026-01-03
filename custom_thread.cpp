@@ -10,13 +10,11 @@
 
 namespace std {
 
-extern "C" {
+
 static void execute_native_thread_routine(void* __p) {
     thread::_State_ptr __t{ static_cast<thread::_State*>(__p) };
     __t->_M_run();
     vTaskDelete(NULL);
-}
-
 }
 
 void thread::_M_start_thread(thread::_State_ptr state, void (*depend)()) {
@@ -24,8 +22,8 @@ void thread::_M_start_thread(thread::_State_ptr state, void (*depend)()) {
     //asm ("" : : "rm" (depend));
 
     auto &thread = this->_M_id._M_thread;
-    thread.stacksize = 512;
-    thread.priority = 1;
+    thread.stacksize = 256;
+    thread.priority = tskIDLE_PRIORITY + 1;
     BaseType_t result = xTaskCreate(static_cast<TaskFunction_t>(&execute_native_thread_routine),
         		                    (const portCHAR *)thread.name,
                                     thread.stacksize,
@@ -48,11 +46,12 @@ void thread::join() {
         		break;
         	default:
         		//__wfi();
-        		__asm volatile( "wfi" );
+        		//__asm volatile( "wfi" );
+        		taskYIELD();
         	}
         }
+        this->_M_id = id{};
 	}
-    this->_M_id = id{};
 }
 
 void thread::detach() {
